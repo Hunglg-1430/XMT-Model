@@ -22,7 +22,7 @@ sys.path.insert(1,'model')
 sys.path.insert(1,'weight')
 
 from augmentation import Aug
-from XModel import XModel
+from xmodel import XMT
 from loader import session
 import optparse
 
@@ -36,7 +36,7 @@ batch_size = 32
 lr=0.0001
 weight_decay=0.0000001
 
-parser = optparse.OptionParser("Train XModel model.")
+parser = optparse.OptionParser("Train XMT model.")
 parser.add_option("-e", "--epoch", type=int, dest='epoch', help='Number of epochs used for training the X model.')
 parser.add_option("-v", "--version", dest='version', help='Version 0.1.')
 parser.add_option("-s", "--cession", type="string",dest='session', help='Training session. Use g for GPU, t for TPU.')
@@ -84,7 +84,7 @@ if cession=='t':
 batch_size, dataloaders, dataset_sizes = session(cession, dir_path, batch_size)
 
 #X model definition
-model = XModel(image_size=224, patch_size=7, num_classes=2, channels=1024, dim=1024, depth=6, heads=8, mlp_dim=2048, gru_hidden_size=1024, dropout_rate=0.1)
+model = XMT(image_size=224, patch_size=7, num_classes=2, channels=1024, dim=1024, depth=6, heads=8, mlp_dim=2048, gru_hidden_size=1024, dropout_rate=0.1)
 model.to(device)
 
 optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
