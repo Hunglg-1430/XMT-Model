@@ -2,7 +2,7 @@ import cv2
 import torch
 from facenet_pytorch import MTCNN
 from torchvision import transforms
-from XModel import XModel
+from xmodel import XMT
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -17,11 +17,11 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 mtcnn = MTCNN(select_largest=False, keep_all=True, post_process=False, device=device)
 
 # Define the CViT model
-model = XModel(image_size=224, patch_size=7, num_classes=2, channels=1024, dim=1024, depth=6, heads=8, mlp_dim=2048, gru_hidden_size=1024)
+model = XMT(image_size=224, patch_size=7, num_classes=2, channels=1024, dim=1024, depth=6, heads=8, mlp_dim=2048, gru_hidden_size=1024)
 model.to(device)
 
 # Load the pre-trained weights for the CViT model
-checkpoint = torch.load('/content/drive/MyDrive/X-Model/weight/final_weight_300k/xmodel_deepfake_sample_1.pth', map_location=torch.device('cpu'))
+checkpoint = torch.load('weight/xmodel_deepfake_sample_1.pth', map_location=torch.device('cpu'))
 filtered_state_dict = {k: v for k, v in checkpoint['state_dict'].items() if k in model.state_dict()}
 model.load_state_dict(filtered_state_dict)
 
@@ -163,13 +163,13 @@ def draw_box_and_label(image, box, label):
 
 # Replace 'folder_path' with the path to your folder containing the images
 # folder_path = '/content/drive/MyDrive/X-Model/new-sample'
-folder_path = '/content/drive/MyDrive/X-Model/sample_train_data/val/real'
+folder_path = 'data/sample_train_data/val/real'
 
 # List all files in the folder
 image_files = os.listdir(folder_path)
 
 # Create a folder to store the output images
-output_folder = '/content/drive/MyDrive/X-Model/Output'
+output_folder = 'XMT-Model/Output'
 os.makedirs(output_folder, exist_ok=True)
 
 correct_predictions = 0
