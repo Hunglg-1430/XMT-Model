@@ -1,199 +1,291 @@
+import sys, os
 import cv2
-import torch
 from facenet_pytorch import MTCNN
-from torchvision import transforms
-from XModel import XModel
-import os
-import numpy as np
-import matplotlib.pyplot as plt
-from PIL import Image
-from PIL import ImageDraw
 import torch.nn.functional as F
+import torch
+import torch.nn as nn
+import glob
+import torch.optim as optim
+import numpy as np
+from time import perf_counter
+from torchvision import transforms
+import pandas as pd
+import json
+import face_recognition
+import random
+from concurrent.futures import ThreadPoolExecutor
 
-# Device setup
+sys.path.insert(1,'helpers')
+sys.path.insert(1,'model')
+sys.path.insert(1,'weight')
+
+from xmodel import XModel
+from helpers_read_video_1 import VideoReader
+from helpers_face_extract_1 import FaceExtractor
+
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-# Initialize face recognition model
+from blazeface import BlazeFace
+facedet = BlazeFace().to(device)
+facedet.load_weights("helpers/blazeface.pth")
+facedet.load_anchors("helpers/anchors.npy")
+_ = facedet.train(False)
+
+mean = [0.485, 0.456, 0.406]
+std = [0.229, 0.224, 0.225]
+
+normalize_transform = transforms.Compose([
+        transforms.Normalize(mean, std)]
+)
+
+tresh=50
+sample='sample__prediction_data/'
+
+ran = random.randint(0,400)
+ran_min = abs(ran-1)
+
+filenames = sorted([x for x in os.listdir(sample) if x[-4:] == ".mp4"]) #[ran_min, ran] -  select video randomly
 mtcnn = MTCNN(select_largest=False, keep_all=True, post_process=False, device=device)
 
-# Define the CViT model
-model = XModel(image_size=224, patch_size=7, num_classes=2, channels=1024, dim=1024, depth=6, heads=8, mlp_dim=2048, gru_hidden_size=1024)
+#load cvit model
+model = XModel(image_size=224, patch_size=7, num_classes=2, channels=1024, dim=1024, depth=6, 
+heads=8, mlp_dim=2048, gru_hidden_size=1024)
 model.to(device)
 
-# Load the pre-trained weights for the CViT model
-checkpoint = torch.load('/content/drive/MyDrive/X-Model/weight/final_weight_300k/xmodel_deepfake_sample_1.pth', map_location=torch.device('cpu'))
+checkpoint = torch.load('xmodel_deepfake_sample_1.pth') # for GPU
+# checkpoint = torch.load('weight/deepfake_cvit_gpu_inference_ep_50.pth', map_location=torch.device('cpu'))
 filtered_state_dict = {k: v for k, v in checkpoint['state_dict'].items() if k in model.state_dict()}
+
+# Load the filtered state_dict into the model
 model.load_state_dict(filtered_state_dict)
 
 # Put the model in evaluation mode
 model.eval()
 
-# Image preprocessing transformation
-mean = [0.485, 0.456, 0.406]
-std = [0.229, 0.224, 0.225]
-normalize_transform = transforms.Compose([
-    transforms.ToPILImage(),
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-    transforms.Normalize(mean, std)
-])
+def predict_on_video(dfdc_filenames, num_workers):
+    def process_file(i):
+        filename = dfdc_filenames[i]
+        print(filename)
+        decCViT = predict(os.path.join(sample, filename), tresh, mtcnn)
+        return decCViT
 
-def process_and_save_image(image_path, output_path):
-    image = Image.open(image_path)
-    image = image.convert('RGB')
-    predictions_list = []
+    with ThreadPoolExecutor(max_workers=num_workers) as ex:
+        predictions = ex.map(process_file, range(len(dfdc_filenames)))
+    return list(predictions)
 
-    # Detect faces
-    boxes, _ = mtcnn.detect(image)
-    if boxes is not None:
-        for box in boxes:
-            face = image.crop(box)
-            face = np.array(face)
-            face = normalize_transform(face).unsqueeze(0).to(device)
+# MTCNN face extctaction
+def face_mtcnn(frame, face_tensor_mtcnn):
+    mtcnn_frame = mtcnn.detect(frame)
+    temp_face = np.zeros((5, 224, 224, 3), dtype=np.uint8)
+    count=0
+    if count<5 and (mtcnn_frame[0] is not None):
+        for face_mt in mtcnn_frame[0]:
+            x1, y1, width_, height_ = face_mt
+            face_mt= frame[int(y1):int(height_), int(x1):int(width_)]
+            if face_mt.size>0 and (count<5):
+                resized_image_mtcnn = cv2.resize(face_mt, (224, 224), interpolation=cv2.INTER_AREA) 
+                resized_image_mtcnn = cv2.cvtColor(resized_image_mtcnn, cv2.COLOR_RGB2BGR)
+                temp_face[count]=resized_image_mtcnn
+                count+=1
+    if count == 0:
+        return [],0
+    return temp_face[:count], count
 
-            prediction = model(face)
-            _, predicted_class = torch.max(prediction, 1)  # Xác định lớp dựa trên logits
-            pred_label = predicted_class.item()
+# face_recognition face extctaction
+def face_face_rec(frame, face_tensor_face_rec):
+    
+    face_locations = face_recognition.face_locations(frame)
+    temp_face = np.zeros((5, 224, 224, 3), dtype=np.uint8)
+    count=0
+    for face_location in face_locations:
+        if count<5:
+            top, right, bottom, left = face_location
+            face_image = frame[top:bottom, left:right]
+            face_image = cv2.resize(face_image, (224, 224), interpolation=cv2.INTER_AREA)
+            face_image = cv2.cvtColor(face_image, cv2.COLOR_RGB2BGR)
+            #face_image = Image.fromarray(face_image)
+            temp_face[count]=face_image
+            count+=1
+    if count == 0:
+        return [],0
+    return temp_face[:count], count
 
-            # Giả định lớp 1 là "Real", lớp 0 là "Fake"
-            label = "Real" if pred_label == 1 else "Fake"
-            draw_box_and_label(image, box, label)
-            predictions_list.append(pred_label)
+# blazeface face extctaction
+def face_blaze(video_path, filename, face_tensor_blaze):
 
-    plt.imshow(image)
-    plt.axis('off')
-    plt.savefig(output_path, bbox_inches='tight')
+    frames_per_video = 45  
+    video_reader = VideoReader()
+    video_read_fn = lambda x: video_reader.read_random_frames(x, num_frames=frames_per_video)
+    face_extractor = FaceExtractor(video_read_fn, facedet)
+    
+    faces = face_extractor.process_video(video_path)
+    # Only look at one face per frame.
+    #face_extractor.keep_only_best_face(faces)
+  
+    count_blaze=0
+    
+    temp_blaze = np.zeros((45, 224, 224, 3), dtype=np.uint8)
+    for frame_data in faces:
+        for face in frame_data["faces"]:
+                if count_blaze<44:
+                    resized_facefrm = cv2.resize(face, (224, 224), interpolation=cv2.INTER_AREA)
+                    resized_facefrm = cv2.cvtColor(resized_facefrm, cv2.COLOR_RGB2BGR)
+                    temp_blaze[count_blaze]=resized_facefrm
+                    count_blaze+=1
+    if count_blaze==0:
+        return [],0
+    return temp_blaze, count_blaze
 
-    return predictions_list
+y_pred=0
+def predict(filename, tresh, mtcnn):
+    store_faces=[]
+    
+    face_tensor_mtcnn = np.zeros((30, 224, 224, 3), dtype=np.uint8)
+    face_tensor_blaze = np.zeros((30, 224, 224, 3), dtype=np.uint8)
+    face_tensor_face_rec = np.zeros((30, 224, 224, 3), dtype=np.uint8)
+    
+    curr_start_time = perf_counter()
+    cap = cv2.VideoCapture(filename)
+    length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-# def process_and_save_image(image_path, output_path):
-#     image = Image.open(image_path)
-#     image = image.convert('RGB')
-#     predictions_list = []
+    start_frame_number = 0
+    frame_count=int(length*0.1)
+    frame_jump = 5 #int(frame_count/5)
+    start_frame_number = 0
 
-#     # Detect faces
-#     boxes, _ = mtcnn.detect(image)
-#     if boxes is not None:
-#         for box in boxes:
-#             face = image.crop(box)
-#             face = np.array(face)
-#             face = normalize_transform(face).unsqueeze(0).to(device)
+    loop = 0
+    count_mtcn=0
+    count_blaze=0
+    count_face_rec = 0
+    
+    while cap.isOpened() and loop<frame_count:
+        loop+=1
+        success, frame = cap.read()
+        cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame_number)
+        
+        if success:
+            '''face_mtcnn_temp, temp_count_mtcn = face_mtcnn(frame, face_tensor_mtcnn)
+            
+            if len(face_mtcnn_temp) and temp_count_mtcn>0:
+                kontrol = count_mtcn+temp_count_mtcn
+                for f in face_mtcnn_temp:
+                    if count_mtcn<=kontrol and (count_mtcn<29):
+                        face_tensor_mtcnn[count_mtcn] = f
+                        count_mtcn+=1'''
+            
+            
+            face_rec,count = face_face_rec(frame, face_tensor_face_rec)
+            
+            if len(face_rec) and count>0:
+                kontrol = count_face_rec+count
+                for f in face_rec:
+                    if count_face_rec<=kontrol and (count_face_rec<29):
+                        face_tensor_face_rec[count_face_rec] = f
+                        count_face_rec+=1
 
-#             prediction = model(face)
-#             # Sử dụng torch.max để lấy chỉ số của lớp dự đoán
-#             _, predicted_class = torch.max(prediction, 1)
-#             pred_label = predicted_class.item()
+            start_frame_number+=frame_jump
+    
+    #face_tensor_blaze, count_blaze = face_blaze(filename, count_blaze, face_tensor_blaze)
 
-#             # Giả định: class 1 tương ứng với "Real", ngược lại là "Fake"
-#             label = "Real" if pred_label == 1 else "Fake"
-#             draw_box_and_label(image, box, label)
-#             predictions_list.append(pred_label)
+    store_rec= face_tensor_face_rec[:count_face_rec]
+    #store_blaze = face_tensor_blaze[:count_blaze]
+    #store_mtcnn = face_tensor_mtcnn[:count_mtcn]
+    
+    dfdc_tensor=store_rec
+    #dfdc_tensor=[*store_rec,*store_blaze,*store_mtcnn] #testing CViT using all three dl libraries - expect lower accuracy.
+    
+    dfdc_tensor = torch.tensor(dfdc_tensor, device=device).float()
 
-#     plt.imshow(image)
-#     plt.axis('off')
-#     plt.savefig(output_path, bbox_inches='tight')
+    # Preprocess the images.
+    dfdc_tensor = dfdc_tensor.permute((0, 3, 1, 2))
 
-#     return predictions_list
+    for i in range(len(dfdc_tensor)):
+        dfdc_tensor[i] = normalize_transform(dfdc_tensor[i] / 255.)
+    
+    # the tranformer accepts batch of <=32.
+    if not len(non_empty(dfdc_tensor, df_len=-1, lower_bound=-1, upper_bound=-1, flag=False)):
+        return torch.tensor(0.5).item()
+        
+    dfdc_tensor = dfdc_tensor.contiguous()
+    df_len = len(dfdc_tensor)
+    
+    with torch.no_grad(): 
+        
+        thrtw =32
+        if df_len<33:
+            thrtw =df_len  
+        y_predCViT = model(dfdc_tensor[0:thrtw])
+        
+        if df_len>32:
+            dft = non_empty(dfdc_tensor, df_len, lower_bound=32, upper_bound=64, flag=True)
+            if len(dft):
+                y_predCViT = pred_tensor(y_predCViT, model(dft))
+        if df_len>64:
+            dft = non_empty(dfdc_tensor, df_len, lower_bound=64, upper_bound=90, flag=True)
+            if len(dft):
+                y_predCViT = pred_tensor(y_predCViT, model(dft))
+        
+        decCViT = pre_process_prediction(pred_sig(y_predCViT))
+        print('CViT', filename, "Prediction:",decCViT.item())
+        return decCViT.item()
 
-# def process_and_save_image(image_path, output_path):
-#     image = Image.open(image_path)
-#     image = image.convert('RGB')
-#     predictions_list = []
+def non_empty(dfdc_tensor, df_len, lower_bound, upper_bound, flag):
+    
+    thrtw=df_len
+    if df_len>=upper_bound:
+        thrtw=upper_bound
+        
+    if flag==True:
+        return dfdc_tensor[lower_bound:thrtw]
+    elif flag==False:
+        return dfdc_tensor
+        
+    return []
+    
+def pred_sig(dfdc_tensor):
+    return torch.sigmoid(dfdc_tensor.squeeze())
 
-#     # Detect faces
-#     boxes, _ = mtcnn.detect(image)
-#     if boxes is not None:
-#         for box in boxes:
-#             face = image.crop(box)
-#             face = np.array(face)
-#             face = normalize_transform(face).unsqueeze(0).to(device)
+def pred_tensor(dfdc_tensor, pre_tensor):
+    return torch.cat((dfdc_tensor,pre_tensor),0)
 
-#             prediction = model(face)
-#             # Assuming the second element of the output is the probability of being "Real"
-#             prob_real = torch.sigmoid(prediction[:, 1])  # Apply sigmoid to the second element
-#             pred_label = prob_real.item() >= 0.5  # Classify based on threshold
+def pre_process_prediction(y_pred):
+    f=[]
+    r=[]
+    if len(y_pred)>2:
+        for i, j in y_pred:
+            f.append(i)
+            r.append(j)
+        f_c = sum(f)/len(f)
+        r_c= sum(r)/len(r)
+        if f_c>r_c:
+            return f_c
+        else:
+            r_c = abs(1-r_c)
+            return r_c
+    else:
+        return torch.tensor(0.5)
+    
+start_time = perf_counter()
+predictions = predict_on_video(filenames, num_workers=4)
+print(predictions)
+end_time = perf_counter()
+print("--- %s seconds ---" % (end_time - start_time))
 
-#             label = "Real" if pred_label else "Fake"
-#             draw_box_and_label(image, box, label)
-#             predictions_list.append(pred_label)
+# for testing DFDC dataset
 
-#     plt.imshow(image)
-#     plt.axis('off')
-#     plt.savefig(output_path, bbox_inches='tight')
-
-#     return predictions_list
-
-# def process_and_save_image(image_path, output_path):
-#     image = Image.open(image_path)
-#     image = image.convert('RGB')
-#     predictions_list = []
-
-#     # Detect faces
-#     boxes, _ = mtcnn.detect(image)
-#     if boxes is not None:
-#         for box in boxes:
-#             face = image.crop(box)
-#             face = np.array(face)
-#             face = normalize_transform(face).unsqueeze(0).to(device)
-
-#             prediction = model(face)
-#             prediction = F.softmax(prediction, dim=1)
-#             top_pred = prediction.argmax(1).item()  # Get the class index
-
-#             label = "Real" if top_pred == 1 else "Fake"
-#             draw_box_and_label(image, box, label)
-#             predictions_list.append(top_pred)
-
-#     plt.imshow(image)
-#     plt.axis('off')
-#     plt.savefig(output_path, bbox_inches='tight')
-
-#     return predictions_list
-
-def draw_box_and_label(image, box, label):
-    draw = ImageDraw.Draw(image)
-
-    # Ensure the box has the correct format (x1, y1, x2, y2)
-    box = [int(coordinate) for coordinate in box]
-    box_tuple = (box[0], box[1], box[2], box[3])
-
-    draw.rectangle(box_tuple, outline="red", width=2)
-    text_position = (box[0], box[1] - 10) if box[1] - 10 > 0 else (box[0], box[1])
-    draw.text(text_position, label, fill="red")
-
-# Replace 'folder_path' with the path to your folder containing the images
-# folder_path = '/content/drive/MyDrive/X-Model/new-sample'
-folder_path = '/content/drive/MyDrive/X-Model/sample_train_data/val/real'
-
-# List all files in the folder
-image_files = os.listdir(folder_path)
-
-# Create a folder to store the output images
-output_folder = '/content/drive/MyDrive/X-Model/Output'
-os.makedirs(output_folder, exist_ok=True)
-
-correct_predictions = 0
-total_predictions = 0
-for file_name in image_files:
-    if file_name.endswith('.jpg') or file_name.endswith('.png'):
-        image_path = os.path.join(folder_path, file_name)
-        output_image_name = file_name.split('.')[0] + '_processed.png'
-        output_path = os.path.join(output_folder, output_image_name)
-
-        predictions = process_and_save_image(image_path, output_path)
-        expected_label = 1 if 'real' in folder_path.lower() else 0  # Assuming 'real' in folder path implies real images
-
-        # Count correct predictions
-        correct_predictions += sum(pred == expected_label for pred in predictions)
-        total_predictions += len(predictions)
-        print(f"Processed and saved image: {output_path}")
-
-# Calculate accuracy
-if total_predictions > 0:
-    accuracy = (correct_predictions / total_predictions) * 100
-    print(f"Prediction accuracy: {accuracy}%")
-else:
-    print("No faces detected in any image.")
-
-# Inform the user where the output images are saved
-print(f"Output images are saved in the folder: {output_folder}")
+def real_or_fake(filenames, predictions): 
+    j=0
+    correct = 0
+    label="REAL"
+    for i in filenames:
+        if predictions[j]<0.5:
+            label="REAL"
+        if predictions[j]>=0.5:
+            label="FAKE"
+        
+        print('Filname:',i,label)
+        j+=1
+        
+real_or_fake(filenames, predictions)
+submission_dfcvit_nov16 = pd.DataFrame({"filename": filenames, "label": predictions})
+submission_dfcvit_nov16.to_csv("cvit_predictions.csv", index=False)
