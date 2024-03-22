@@ -100,86 +100,38 @@ class GRUBlock(nn.Module):
         outputs = torch.cat(outputs, dim=1)
         return outputs
 
-class XMT(nn.Module):
-    def __init__(self, image_size=224, patch_size=7, num_classes=2, channels=1024, dim=1024, depth=6, heads=8, mlp_dim=2048, gru_hidden_size=1024, dropout_rate=0.1):
-        super(XMT, self).__init__()
+class XModel(nn.Module):
+    def __init__(self, image_size=224, patch_size=7, num_classes=2, channels=1024, dim=1024, depth=6, heads=8, mlp_dim=2048, gru_hidden_size=1024):
+        super(XModel, self).__init__()
         self.features = nn.Sequential(
 
             nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(num_features=32),
             nn.LeakyReLU(),
-            nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(num_features=32),
-            nn.LeakyReLU(),
-            nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(num_features=32),
-            nn.LeakyReLU(),
-            nn.Dropout(dropout_rate),
             nn.MaxPool2d(kernel_size=2, stride=2),
 
             nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(num_features=64),
             nn.LeakyReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(num_features=64),
-            nn.LeakyReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(num_features=64),
-            nn.LeakyReLU(),
-            nn.Dropout(dropout_rate),
             nn.MaxPool2d(kernel_size=2, stride=2),
 
             nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(num_features=128),
             nn.LeakyReLU(),
-            nn.Conv2d(128, 128, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(num_features=128),
-            nn.LeakyReLU(),
-            nn.Conv2d(128, 128, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(num_features=128),
-            nn.LeakyReLU(),
-            nn.Dropout(dropout_rate),
             nn.MaxPool2d(kernel_size=2, stride=2),
 
             nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(num_features=256),
             nn.LeakyReLU(),
-            nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(num_features=256),
-            nn.LeakyReLU(),
-            nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(num_features=256),
-            nn.LeakyReLU(),
-            nn.Dropout(dropout_rate),
             nn.MaxPool2d(kernel_size=2, stride=2),
 
             nn.Conv2d(256, 512, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(num_features=512),
             nn.LeakyReLU(),
-            nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(num_features=512),
-            nn.LeakyReLU(),
-            nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(num_features=512),
-            nn.LeakyReLU(),
-            nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(num_features=512),
-            nn.LeakyReLU(),
-            nn.Dropout(dropout_rate),
 
             nn.Conv2d(512, 1024, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(num_features=1024),
             nn.LeakyReLU(),
-            nn.Conv2d(1024, 1024, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(num_features=1024),
-            nn.LeakyReLU(),
-            nn.Conv2d(1024, 1024, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(num_features=1024),
-            nn.LeakyReLU(),
-            nn.Conv2d(1024, 1024, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(num_features=1024),
-            nn.LeakyReLU(),
-            nn.Dropout(dropout_rate),
             nn.MaxPool2d(kernel_size=2, stride=2)
 
         )
@@ -200,10 +152,7 @@ class XMT(nn.Module):
         self.mlp_head = nn.Sequential(
             nn.Linear(gru_hidden_size, mlp_dim),
             nn.LeakyReLU(),
-            nn.Sigmoid(),
-            nn.Flatten(),
-            nn.Linear(mlp_dim, num_classes),
-            nn.Dropout(dropout_rate),
+            nn.Linear(mlp_dim, num_classes)
         )
 
 
