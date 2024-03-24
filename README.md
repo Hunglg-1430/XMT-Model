@@ -32,7 +32,7 @@ To train the model on your own, you can use the following parameters:
 To train the model using specific parameters:
 
 ```bash
-python train.py -e 15 -s 'g' -l 0.0001 -w 0.0000001 -d sample_train_data/
+python train.py -e 15 -s 'g' -l 0.0001 -w 0.0000001 -d sample_train_data/ -p
 ```
 ### Weights:
 `xmodel_deepfake_sample.pth`: Full weight for detection.
