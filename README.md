@@ -27,7 +27,7 @@ To train the model on your own, you can use the following parameters:
 - `b`: batch size (default: 32)
 - `p`: The process of accuracy and loss
 
-### Example command:
+#### Example command:
 
 To train the model using specific parameters:
 
@@ -36,7 +36,7 @@ python train.py -e 15 -s 'g' -l 0.0001 -w 0.0000001 -d sample_train_data/ -p
 ```
 ### Weights:
 `xmodel_deepfake_sample.pth`: Full weight for detection.
-### Predict XMT
+### Predict XMT:
 - Predict on Image
 ```bash
 python image-prediction.py
@@ -45,7 +45,7 @@ python image-prediction.py
 ```bash
 python video-prediction.py
 ```
-### Authors
+### Authors:
 - Le Dang Khoa
 - Le Gia Hung
 - Nguyen Hung Thinh
