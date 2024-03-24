@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 from PIL import Image
 from PIL import ImageDraw
 import torch.nn.functional as F
+import sys
+sys.path.append(r'C:\Users\lehun\OneDrive\Desktop\XMT-Model\model')
 
 # Device setup
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -122,8 +124,8 @@ def save_video(frames, output_path, fps=20.0, resolution=(1280, 720)):
         out.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
     out.release()
 
-video_path = r"D:\musics\Bokura no Spectra  Ultraman Blazar Op EngJap sub_720pFHR.mp4"
-output_path = r"C:\Users\lehun\OneDrive\Desktop\XMT-Model\result\output_video.avi"
+video_path = r"input_video.mp4"
+output_path = r"result\output_video.avi"
 
 processed_frames = (process_frame(frame) for frame in extract_frames(video_path))
 save_video(processed_frames, output_path)
