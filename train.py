@@ -84,7 +84,7 @@ if cession=='t':
 batch_size, dataloaders, dataset_sizes = session(cession, dir_path, batch_size)
 
 #X model definition
-model = XMT(image_size=224, patch_size=7, num_classes=2, channels=1024, dim=1024, depth=6, heads=8, mlp_dim=2048, gru_hidden_size=1024, dropout_rate=0.1)
+model = XMT(image_size=224, patch_size=7, num_classes=2, channels=1024, dim=1024, depth=6, heads=8, mlp_dim=2048, gru_hidden_size=1024)
 model.to(device)
 
 optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
