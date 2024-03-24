@@ -3,7 +3,6 @@ from torch import nn
 from einops import rearrange
 import torch.nn.functional as F
 
-
 class Residual(nn.Module):
     def __init__(self, fn):
         super().__init__()
@@ -100,9 +99,9 @@ class GRUBlock(nn.Module):
         outputs = torch.cat(outputs, dim=1)
         return outputs
 
-class XModel(nn.Module):
+class XMT(nn.Module):
     def __init__(self, image_size=224, patch_size=7, num_classes=2, channels=1024, dim=1024, depth=6, heads=8, mlp_dim=2048, gru_hidden_size=1024):
-        super(XModel, self).__init__()
+        super(XMT, self).__init__()
         self.features = nn.Sequential(
 
             nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1),
