@@ -2,6 +2,7 @@ import cv2
 import torch
 from facenet_pytorch import MTCNN
 from torchvision import transforms
+from PIL import ImageDraw
 from xmodel import XMT
 import os
 import numpy as np
@@ -59,9 +60,9 @@ def process_and_save_image(image_path, output_path):
             _, predicted_class = torch.max(prediction, 1)
             pred_label = predicted_class.item()
 
-            # Xác định độ chính xác của dự đoán
-            pred_accuracy = torch.max(prediction).item() * 100  # Chuyển đổi sang phần trăm
+            pred_accuracy = torch.max(prediction).item() * 100
 
+            # label = "Fake" if pred_label == 1 else "Real"
             label = "Real" if pred_label == 1 else "Fake"
             label_with_accuracy = f"{label} ({pred_accuracy:.2f}%)"
             draw_box_and_label(image, box, label_with_accuracy)
@@ -79,13 +80,30 @@ def process_and_save_image(image_path, output_path):
 def draw_box_and_label(image, box, label):
     draw = ImageDraw.Draw(image)
 
+    # Determine color based on the label
+    color = "green" if label.startswith("Real") else "red"
+
+    # Ensure the box has the correct format (x1, y1, x2, y2)
     box = [int(coordinate) for coordinate in box]
     box_tuple = (box[0], box[1], box[2], box[3])
 
-    draw.rectangle(box_tuple, outline="red", width=2)
-    text_size = draw.textsize(label)
-    text_position = (box[0], max(box[1] - text_size[1], 0))  # Điều chỉnh vị trí văn bản
-    draw.text(text_position, label, fill="red")
+    # Draw rectangle and text with the determined color
+    draw.rectangle(box_tuple, outline=color, width=2)
+    text_position = (box[0], box[1] - 10) if box[1] - 10 > 0 else (box[0], box[1])
+    draw.text(text_position, label, fill=color)
+
+# def draw_box_and_label(image, box, label):
+#     draw = ImageDraw.Draw(image)
+
+#     # Ensure the box has the correct format (x1, y1, x2, y2)
+#     box = [int(coordinate) for coordinate in box]
+#     box_tuple = (box[0], box[1], box[2], box[3])
+
+#     draw.rectangle(box_tuple, outline="red", width=2)
+#     text_position = (box[0], box[1] - 10) if box[1] - 10 > 0 else (box[0], box[1])
+#     draw.text(text_position, label, fill="red")
+
+folder_path = 'data/sample_train_data/val/real'
 
 def extract_frames(video_path):
     cap = cv2.VideoCapture(video_path)
@@ -124,7 +142,7 @@ def save_video(frames, output_path, fps=20.0, resolution=(1280, 720)):
         out.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
     out.release()
 
-video_path = r"input_video.mp4"
+video_path = r"input.mp4"
 output_path = r"result\output_video.avi"
 
 processed_frames = (process_frame(frame) for frame in extract_frames(video_path))
