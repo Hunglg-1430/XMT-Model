@@ -34,7 +34,6 @@ checkpoint = torch.load('weight/xmodel_deepfake_sample_1.pth', map_location=torc
 filtered_state_dict = {k: v for k, v in checkpoint['state_dict'].items() if k in model.state_dict()}
 model.load_state_dict(filtered_state_dict)
 
-# Put the model in evaluation mode
 model.eval()
 
 # Image preprocessing transformation
@@ -53,7 +52,6 @@ def process_and_save_image(image_path, output_path):
     predictions_list = []
     accuracy_list = []
 
-    # Detect faces
     boxes, _ = mtcnn.detect(image)
     if boxes is not None:
         for box in boxes:
@@ -68,7 +66,6 @@ def process_and_save_image(image_path, output_path):
 
             pred_accuracy = torch.max(prediction).item() * 100
 
-            # label = "Fake" if pred_label == 1 else "Real"
             label = "Real" if pred_label == 1 else "Fake"
             label_with_accuracy = f"{label} ({pred_accuracy:.2f}%)"
             draw_box_and_label(image, box, label_with_accuracy)
@@ -86,14 +83,11 @@ def process_and_save_image(image_path, output_path):
 def draw_box_and_label(image, box, label):
     draw = ImageDraw.Draw(image)
 
-    # Determine color based on the label
     color = "green" if label.startswith("Real") else "red"
 
-    # Ensure the box has the correct format (x1, y1, x2, y2)
     box = [int(coordinate) for coordinate in box]
     box_tuple = (box[0], box[1], box[2], box[3])
 
-    # Draw rectangle and text with the determined color
     draw.rectangle(box_tuple, outline=color, width=2)
     text_position = (box[0], box[1] - 10) if box[1] - 10 > 0 else (box[0], box[1])
     draw.text(text_position, label, fill=color)
@@ -143,13 +137,11 @@ def resize_frame(frame, target_size=(1920, 1080)):
     h, w = frame.shape[:2]
     desired_w, desired_h = target_size
 
-    # Calculate ratios and determine scaling direction
     ratio_w = desired_w / w
     ratio_h = desired_h / h
     new_w, new_h = w, h
 
     if ratio_w < ratio_h:
-        # Scale width and add padding to height
         new_w = desired_w
         new_h = round(h * ratio_w)
         frame = cv2.resize(frame, (new_w, new_h))
@@ -157,7 +149,6 @@ def resize_frame(frame, target_size=(1920, 1080)):
         pad_bottom = desired_h - new_h - pad_top
         frame = cv2.copyMakeBorder(frame, pad_top, pad_bottom, 0, 0, cv2.BORDER_CONSTANT)
     else:
-        # Scale height and add padding to width
         new_h = desired_h
         new_w = round(w * ratio_h)
         frame = cv2.resize(frame, (new_w, new_h))
@@ -184,13 +175,11 @@ def main():
     processed_frames = (process_frame(frame) for frame in extract_frames(video_path))
 
     if args.save:
-        # Convert frames to BGR before saving
         bgr_frames = (cv2.cvtColor(frame, cv2.COLOR_RGB2BGR) for frame in processed_frames)
         save_video(bgr_frames, output_path, resolution=(1920, 1080))
         print(f"Saved processed video to {output_path}")
     elif args.display:
         for frame in processed_frames:
-            # Convert frames to BGR before displaying
             frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
             cv2.imshow('Frame', frame_bgr)
             if cv2.waitKey(1) & 0xFF == ord('q'):

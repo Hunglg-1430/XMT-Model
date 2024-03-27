@@ -45,14 +45,10 @@ parser.add_option("-b", "--batch", type=int, dest='batch', help='Batch size.')
 parser.add_option("-l", "--rate",  type=float, dest='rate', help='Learning rate.')
 parser.add_option("-w", "--decay", type=float, dest='decay', help='Weight decay.')
 parser.add_option("-p", "--plot", action="store_true", dest='plot', help='Plot training and validation metrics.')
-# parser.add_option("-a", "--auc", action="store_true", dest='auc', help='Calculate and plot AUC.')
-# parser.add_option("-c", "--confmatrix", action="store_true", dest='confmatrix', help='Calculate and plot confusion matrix.')
 
 (options,args) = parser.parse_args()
 
 plot_metrics = False
-# calculate_auc = False
-# calculate_confmatrix = False
 
 if options.session:
     cession = options.session
@@ -71,11 +67,6 @@ if options.decay:
     weight_decay = float(options.decay)
 if options.plot:
     plot_metrics = True
-# if options.auc:
-#     calculate_auc = True
-# if options.confmatrix:
-#     calculate_confmatrix = True
-
 
 if cession=='t':
     print('USING TPU.')
@@ -129,9 +120,9 @@ def train_tpu(model, criterion, optimizer, scheduler, num_epochs, min_val_loss, 
 
         for phase in ['train', 'val']:
             if phase == 'train':
-                model.train()  # Set model to training mode
+                model.train()
             else:
-                model.eval()   # Set model to evaluate mode
+                model.eval()
 
             running_loss = 0.0
             running_corrects = 0
@@ -140,23 +131,17 @@ def train_tpu(model, criterion, optimizer, scheduler, num_epochs, min_val_loss, 
 
             epoch_loss = running_loss / dataset_sizes[phase]
 
-            # Iterate over data.
             for inputs, labels in dataloaders[phase]:
                 inputs = inputs.to(device)
                 labels = labels.to(device)
 
-                # zero the parameter gradients
                 optimizer.zero_grad()
 
-                # forward
-                # track history if only in train
                 with torch.set_grad_enabled(phase == 'train'):
                     outputs = model(inputs)
-                    #break
                     _, preds = torch.max(outputs, 1)
                     loss = criterion(outputs, labels)
 
-                    # backward + optimize only if in training phase
                     if phase == 'train':
                         loss.backward()
                         xm.optimizer_step(optimizer, barrier=True)
@@ -191,7 +176,6 @@ def train_tpu(model, criterion, optimizer, scheduler, num_epochs, min_val_loss, 
 
             print('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc))
 
-            # deep copy the model
             if phase == 'val' and epoch_loss < min_loss:
                 print('Validation loss decreased ({:.6f} --> {:.6f}).  Saving model ...'.format(epoch_loss, min_loss))
                 min_loss = epoch_loss
@@ -201,7 +185,6 @@ def train_tpu(model, criterion, optimizer, scheduler, num_epochs, min_val_loss, 
     print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
     print('Best val Acc: {:4f}'.format(best_acc))
 
-    # load best model weights
     model.load_state_dict(best_model_wts)
 
     with open('weight/xmodel_deepfake_sample_1.pkl', 'wb') as f:
@@ -214,16 +197,8 @@ def train_tpu(model, criterion, optimizer, scheduler, num_epochs, min_val_loss, 
                  'min_loss': epoch_loss}
         torch.save(state, 'weight/xmodel_deepfake_sample_1.pth')
 
-    # if calculate_auc == True:
-    #     auc_score = calculate_auc(model, dataloaders, dataset_sizes)
-    #     print('AUC:', auc_score)
-
-    # if calculate_confmatrix == True:
-    #     cm = calculate_confusion_matrix(model, dataloaders, dataset_sizes)
-    #     print(cm)
 
     if plot_metrics == True:
-        # Plotting the training and validation loss
         plt.figure(figsize=(10, 5))
         plt.title("Training and Validation Loss")
         plt.plot(val_loss, label="val")
@@ -231,10 +206,9 @@ def train_tpu(model, criterion, optimizer, scheduler, num_epochs, min_val_loss, 
         plt.xlabel("Iterations")
         plt.ylabel("Loss")
         plt.legend()
-        plt.savefig('result/training_validation_loss.png')  # Save the plot as a file
+        plt.savefig('result/training_validation_loss.png')
         plt.close()
 
-        # Plotting the training and validation accuracy
         plt.figure(figsize=(10, 5))
         plt.title("Training and Validation Accuracy")
         plt.plot([acc.cpu().numpy() for acc in val_accu], label="val")
@@ -242,7 +216,7 @@ def train_tpu(model, criterion, optimizer, scheduler, num_epochs, min_val_loss, 
         plt.xlabel("Iterations")
         plt.ylabel("Accuracy")
         plt.legend()
-        plt.savefig('result/training_validation_accuracy.png')  # Save the plot as a file
+        plt.savefig('result/training_validation_accuracy.png')
         plt.close()
 
     return train_loss,train_accu,val_loss,val_accu, min_loss
@@ -278,12 +252,11 @@ def train_gpu(model, criterion, optimizer, scheduler, num_epochs, min_val_loss, 
         print('Epoch {}/{}'.format(epoch, total_epochs - 1))
         print('-' * 10)
 
-        # Each epoch has a training and validation phase
         for phase in ['train', 'val']:
             if phase == 'train':
-                model.train()  # Set model to training mode
+                model.train()
             else:
-                model.eval()   # Set model to evaluate mode
+                model.eval()
 
             running_loss = 0.0
             running_corrects = 0
@@ -292,26 +265,20 @@ def train_gpu(model, criterion, optimizer, scheduler, num_epochs, min_val_loss, 
 
             epoch_loss = running_loss / dataset_sizes[phase]
 
-            # Iterate over data.
             for inputs, labels in dataloaders[phase]:
                 inputs = inputs.to(device)
                 labels = labels.to(device)
 
-                # zero the parameter gradients
                 optimizer.zero_grad()
 
-                # forward
-                # track history if only in train
                 with torch.set_grad_enabled(phase == 'train'):
                     outputs = model(inputs)
-                    #break
                     _, preds = torch.max(outputs, 1)
                     loss = criterion(outputs, labels)
 
-                    # backward + optimize only if in training phase
                     if phase == 'train':
                         loss.backward()
-                        optimizer.step() # GPU || CPU
+                        optimizer.step()
 
                 if phase_idx%100==0:
                     print(phase,' loss:',phase_idx,':', loss.item())
@@ -342,7 +309,6 @@ def train_gpu(model, criterion, optimizer, scheduler, num_epochs, min_val_loss, 
 
             print('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc))
 
-            # deep copy the model
             if phase == 'val' and epoch_loss < min_loss:
                 print('Validation loss decreased ({:.6f} --> {:.6f}).  Saving model ...'.format(epoch_loss, min_loss))
                 min_loss = epoch_loss
@@ -352,7 +318,6 @@ def train_gpu(model, criterion, optimizer, scheduler, num_epochs, min_val_loss, 
     print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
     print('Best val Acc: {:4f}'.format(best_acc))
 
-    # load best model weights
     model.load_state_dict(best_model_wts)
 
     with open('weight/xmodel_deepfake_sample_1.pkl', 'wb') as f:
@@ -367,16 +332,13 @@ def train_gpu(model, criterion, optimizer, scheduler, num_epochs, min_val_loss, 
 
     test(model, dataloaders, dataset_sizes)
 
-    # if calculate_auc == True:
     auc_score = calculate_auc(model, dataloaders, dataset_sizes)
     print('AUC:', auc_score)
 
-    # if calculate_confmatrix == True:
     cm = calculate_confusion_matrix(model, dataloaders, dataset_sizes)
     print('confusion_matrix', cm)
 
     if plot_metrics == True:
-        # Plotting the training and validation loss
         plt.figure(figsize=(10, 5))
         plt.title("Training and Validation Loss")
         plt.plot(val_loss, label="val")
@@ -384,10 +346,10 @@ def train_gpu(model, criterion, optimizer, scheduler, num_epochs, min_val_loss, 
         plt.xlabel("Iterations")
         plt.ylabel("Loss")
         plt.legend()
-        plt.savefig('result/training_validation_loss.png')  # Save the plot as a file
+        plt.savefig('result/training_validation_loss.png')
         plt.close()
 
-        # Plotting the training and validation accuracy
+
         plt.figure(figsize=(10, 5))
         plt.title("Training and Validation Accuracy")
         plt.plot([acc.cpu().numpy() for acc in val_accu], label="val")
@@ -395,7 +357,7 @@ def train_gpu(model, criterion, optimizer, scheduler, num_epochs, min_val_loss, 
         plt.xlabel("Iterations")
         plt.ylabel("Accuracy")
         plt.legend()
-        plt.savefig('result/training_validation_accuracy.png')  # Save the plot as a file
+        plt.savefig('result/training_validation_accuracy.png')
         plt.close()
 
     return train_loss,train_accu,val_loss,val_accu, min_loss
@@ -405,7 +367,6 @@ def calculate_auc(model, dataloaders, dataset_sizes):
     all_labels = []
     all_preds = []
 
-    # Iterate over test data
     for inputs, labels in dataloaders['test']:
         inputs = inputs.to(device)
         labels = labels.to(device)
@@ -413,16 +374,13 @@ def calculate_auc(model, dataloaders, dataset_sizes):
         outputs = model(inputs)
         _, predictions = torch.max(outputs, 1)
 
-        # Store probabilities and true labels for ROC calculation
-        outputs = outputs.softmax(dim=1)  # Convert to probabilities
+        outputs = outputs.softmax(dim=1)
         all_labels.extend(labels.tolist())
-        all_preds.extend(outputs[:, 1].tolist())  # Assuming binary classification
+        all_preds.extend(outputs[:, 1].tolist())
 
-    # Calculate ROC and AUC
     fpr, tpr, thresholds = roc_curve(all_labels, all_preds)
     roc_auc = auc(fpr, tpr)
 
-    # Plot ROC curve
     plt.figure()
     plt.plot(fpr, tpr, color='darkorange', lw=2, label='ROC curve (area = %0.2f)' % roc_auc)
     plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
@@ -432,7 +390,7 @@ def calculate_auc(model, dataloaders, dataset_sizes):
     plt.ylabel('True Positive Rate')
     plt.title('Receiver Operating Characteristic')
     plt.legend(loc="lower right")
-    plt.savefig('result/roc_curve.png')  # Save the plot as a file
+    plt.savefig('result/roc_curve.png')
     plt.close()
 
     return roc_auc
@@ -442,7 +400,6 @@ def calculate_confusion_matrix(model, dataloaders, dataset_sizes):
     all_labels = []
     all_preds = []
 
-    # Iterate over test data
     for inputs, labels in dataloaders['test']:
         inputs = inputs.to(device)
         labels = labels.to(device)
@@ -453,18 +410,15 @@ def calculate_confusion_matrix(model, dataloaders, dataset_sizes):
         all_labels.extend(labels.tolist())
         all_preds.extend(predictions.tolist())
 
-    # Calculate confusion matrix and classification report
     cm = confusion_matrix(all_labels, all_preds)
     report = classification_report(all_labels, all_preds, output_dict=True, zero_division=0)
 
-    # F1 Score, Precision, and Recall
     f1_score = report['weighted avg']['f1-score']
     precision = report['weighted avg']['precision']
     recall = report['weighted avg']['recall']
 
     print(f"F1 Score: {f1_score:.2f}, Precision: {precision:.2f}, Recall: {recall:.2f}")
 
-    # Format and plot confusion matrix
     group_names = ['True Neg', 'False Pos', 'False Neg', 'True Pos']
     group_counts = ["{0:0.0f}".format(value) for value in cm.flatten()]
     group_percentages = ["{0:.2%}".format(value) for value in cm.flatten()/np.sum(cm)]
