@@ -49,6 +49,9 @@ python video-prediction.py
 ```bash
 python video-prediction-2.py --video_path --display
 ```
+```bash
+python video-prediction-2.py --video_path --output_path --save
+```
 ### Authors:
 - Le Dang Khoa
 - Le Gia Hung
