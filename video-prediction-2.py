@@ -175,6 +175,7 @@ def resize_frame(frame, target_size=(1920, 1080)):
 # python your_script_name.py --video_path "path_to_video.mp4" --output_path "path_to_output.avi" --save --display
 # To Only Process (Without Saving or Displaying):
 # python your_script_name.py --video_path "path_to_video.mp4"
+# "q" to quit the display window
 
 def main():
     video_path = args.video_path
