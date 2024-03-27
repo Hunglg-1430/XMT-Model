@@ -47,7 +47,7 @@ python image-prediction.py
 python video-prediction.py
 ```
 ```bash
-python video-prediction-2.py
+python video-prediction-2.py --video_path --display
 ```
 ### Authors:
 - Le Dang Khoa
