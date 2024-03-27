@@ -12,10 +12,11 @@ Face extraction from video.
 
 We use pretrained YoloV5 on the face for more accurate face recognition.
 
-Install all libraries in `requirements.txt`:
+pip install -r `requirements.txt`:
 
 
 ### Train:
+pip install -r `requirements.txt`:
 
 To train the model on your own, you can use the following parameters:
 
@@ -44,6 +45,9 @@ python image-prediction.py
 - Predict on Video
 ```bash
 python video-prediction.py
+```
+```bash
+python video-prediction-2.py
 ```
 ### Authors:
 - Le Dang Khoa
