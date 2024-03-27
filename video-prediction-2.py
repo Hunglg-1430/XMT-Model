@@ -10,8 +10,7 @@ import matplotlib.pyplot as plt
 from PIL import Image
 from PIL import ImageDraw
 import torch.nn.functional as F
-import sys
-sys.path.append(r'C:\Users\lehun\OneDrive\Desktop\XMT-Model\model')
+import argparse
 
 # Device setup
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -22,6 +21,13 @@ mtcnn = MTCNN(select_largest=False, keep_all=True, post_process=False, device=de
 # Define the XMT model
 model = XMT(image_size=224, patch_size=7, num_classes=2, channels=1024, dim=1024, depth=6, heads=8, mlp_dim=2048, gru_hidden_size=1024)
 model.to(device)
+
+parser = argparse.ArgumentParser(description="Process and display video frames")
+parser.add_argument("--video_path", type=str, required=True, help="Path to the input video file")
+parser.add_argument("--output_path", type=str, help="Path to the output video file")
+parser.add_argument("--save", action="store_true", help="Save the processed video")
+parser.add_argument("--display", action="store_true", help="Display the video in real-time")
+args = parser.parse_args()
 
 # Load the pre-trained weights for the XMT model
 checkpoint = torch.load('weight/xmodel_deepfake_sample_1.pth', map_location=torch.device('cpu'))
@@ -92,19 +98,6 @@ def draw_box_and_label(image, box, label):
     text_position = (box[0], box[1] - 10) if box[1] - 10 > 0 else (box[0], box[1])
     draw.text(text_position, label, fill=color)
 
-# def draw_box_and_label(image, box, label):
-#     draw = ImageDraw.Draw(image)
-
-#     # Ensure the box has the correct format (x1, y1, x2, y2)
-#     box = [int(coordinate) for coordinate in box]
-#     box_tuple = (box[0], box[1], box[2], box[3])
-
-#     draw.rectangle(box_tuple, outline="red", width=2)
-#     text_position = (box[0], box[1] - 10) if box[1] - 10 > 0 else (box[0], box[1])
-#     draw.text(text_position, label, fill="red")
-
-folder_path = 'data/sample_train_data/val/real'
-
 def extract_frames(video_path):
     cap = cv2.VideoCapture(video_path)
     while cap.isOpened():
@@ -142,8 +135,68 @@ def save_video(frames, output_path, fps=20.0, resolution=(1280, 720)):
         out.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
     out.release()
 
-video_path = r"D:\musics\y2mate.com - Vietsub  Kara Alive A Life  Kamen Rider Ryuki OST_1080p.mp4"
-output_path = r"result\output_video.avi"
+def resize_frame(frame, target_size=(1920, 1080)):
+    """
+    Resize the frame to the target size while maintaining aspect ratio.
+    Adds padding if necessary to fit the target size without distortion.
+    """
+    h, w = frame.shape[:2]
+    desired_w, desired_h = target_size
 
-processed_frames = (process_frame(frame) for frame in extract_frames(video_path))
-save_video(processed_frames, output_path)
+    # Calculate ratios and determine scaling direction
+    ratio_w = desired_w / w
+    ratio_h = desired_h / h
+    new_w, new_h = w, h
+
+    if ratio_w < ratio_h:
+        # Scale width and add padding to height
+        new_w = desired_w
+        new_h = round(h * ratio_w)
+        frame = cv2.resize(frame, (new_w, new_h))
+        pad_top = (desired_h - new_h) // 2
+        pad_bottom = desired_h - new_h - pad_top
+        frame = cv2.copyMakeBorder(frame, pad_top, pad_bottom, 0, 0, cv2.BORDER_CONSTANT)
+    else:
+        # Scale height and add padding to width
+        new_h = desired_h
+        new_w = round(w * ratio_h)
+        frame = cv2.resize(frame, (new_w, new_h))
+        pad_left = (desired_w - new_w) // 2
+        pad_right = desired_w - new_w - pad_left
+        frame = cv2.copyMakeBorder(frame, 0, 0, pad_left, pad_right, cv2.BORDER_CONSTANT)
+
+    return frame
+
+# To Save the Processed Video:
+# python your_script_name.py --video_path "path_to_video.mp4" --output_path "path_to_output.avi" --save
+# To Display the Video in Real-Time:
+# python your_script_name.py --video_path "path_to_video.mp4" --display
+# To Save and Display the Video:
+# python your_script_name.py --video_path "path_to_video.mp4" --output_path "path_to_output.avi" --save --display
+# To Only Process (Without Saving or Displaying):
+# python your_script_name.py --video_path "path_to_video.mp4"
+
+def main():
+    video_path = args.video_path
+    output_path = args.output_path if args.output_path else "output.mp4"
+
+    processed_frames = (process_frame(frame) for frame in extract_frames(video_path))
+
+    if args.save:
+        # Convert frames to BGR before saving
+        bgr_frames = (cv2.cvtColor(frame, cv2.COLOR_RGB2BGR) for frame in processed_frames)
+        save_video(bgr_frames, output_path, resolution=(1920, 1080))
+        print(f"Saved processed video to {output_path}")
+    elif args.display:
+        for frame in processed_frames:
+            # Convert frames to BGR before displaying
+            frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            cv2.imshow('Frame', frame_bgr)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+        cv2.destroyAllWindows()
+    else:
+        print("No action specified. Please use --save to save the video or --display to view it in real-time.")
+
+if __name__ == "__main__":
+    main()
