@@ -3,7 +3,6 @@ import torch
 from facenet_pytorch import MTCNN
 from torchvision import transforms
 from PIL import ImageDraw
-from xmodel import XMT
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -11,30 +10,13 @@ from PIL import Image
 from PIL import ImageDraw
 import torch.nn.functional as F
 import argparse
+from load_model import load_model_xmt
+from PIL import ImageFont, ImageDraw
 
-# Device setup
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-# Initialize face recognition model
-mtcnn = MTCNN(select_largest=False, keep_all=True, post_process=False, device=device)
+mtcnn, model, device = load_model_xmt()
 
-# Define the XMT model
-model = XMT(image_size=224, patch_size=7, num_classes=2, channels=1024, dim=1024, depth=6, heads=8, mlp_dim=2048, gru_hidden_size=1024)
-model.to(device)
 
-parser = argparse.ArgumentParser(description="Process and display video frames")
-parser.add_argument("--video_path", type=str, required=True, help="Path to the input video file")
-parser.add_argument("--output_path", type=str, help="Path to the output video file")
-parser.add_argument("--save", action="store_true", help="Save the processed video")
-parser.add_argument("--display", action="store_true", help="Display the video in real-time")
-args = parser.parse_args()
-
-# Load the pre-trained weights for the XMT model
-checkpoint = torch.load('weight/xmodel_deepfake_sample_1.pth', map_location=torch.device('cpu'))
-filtered_state_dict = {k: v for k, v in checkpoint['state_dict'].items() if k in model.state_dict()}
-model.load_state_dict(filtered_state_dict)
-
-model.eval()
 
 # Image preprocessing transformation
 mean = [0.485, 0.456, 0.406]
@@ -82,15 +64,13 @@ def process_and_save_image(image_path, output_path):
 
 def draw_box_and_label(image, box, label):
     draw = ImageDraw.Draw(image)
-
-    color = "green" if label.startswith("Real") else "red"
-
+    color = "yellow" if label.startswith("Real") else "yellow"
     box = [int(coordinate) for coordinate in box]
     box_tuple = (box[0], box[1], box[2], box[3])
-
+    font = ImageFont.load_default(30)
     draw.rectangle(box_tuple, outline=color, width=2)
     text_position = (box[0], box[1] - 10) if box[1] - 10 > 0 else (box[0], box[1])
-    draw.text(text_position, label, fill=color)
+    draw.text(text_position, label, fill=color, font=font)
 
 def extract_frames(video_path):
     cap = cv2.VideoCapture(video_path)
@@ -158,35 +138,3 @@ def resize_frame(frame, target_size=(1920, 1080)):
 
     return frame
 
-# To Save the Processed Video:
-# python your_script_name.py --video_path "path_to_video.mp4" --output_path "path_to_output.avi" --save
-# To Display the Video in Real-Time:
-# python your_script_name.py --video_path "path_to_video.mp4" --display
-# To Save and Display the Video:
-# python your_script_name.py --video_path "path_to_video.mp4" --output_path "path_to_output.avi" --save --display
-# To Only Process (Without Saving or Displaying):
-# python your_script_name.py --video_path "path_to_video.mp4"
-# "q" to quit the display window
-
-def main():
-    video_path = args.video_path
-    output_path = args.output_path if args.output_path else "output.mp4"
-
-    processed_frames = (process_frame(frame) for frame in extract_frames(video_path))
-
-    if args.save:
-        bgr_frames = (cv2.cvtColor(frame, cv2.COLOR_RGB2BGR) for frame in processed_frames)
-        save_video(bgr_frames, output_path, resolution=(1920, 1080))
-        print(f"Saved processed video to {output_path}")
-    elif args.display:
-        for frame in processed_frames:
-            frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-            cv2.imshow('Frame', frame_bgr)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-        cv2.destroyAllWindows()
-    else:
-        print("No action specified. Please use --save to save the video or --display to view it in real-time.")
-
-if __name__ == "__main__":
-    main()
