@@ -12,7 +12,7 @@ Face extraction from video.
 
 We use pretrained YoloV5 on the face for more accurate face recognition.
 
-pip install -r `requirements.txt`:
+pip install -r `requirements.txt`
 
 
 ### Train:
