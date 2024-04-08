@@ -16,7 +16,7 @@ pip install -r `requirements.txt`:
 
 
 ### Train:
-pip install -r `requirements.txt`:
+pip install -r `requirements.txt`
 
 To train the model on your own, you can use the following parameters:
 
