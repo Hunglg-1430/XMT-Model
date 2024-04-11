@@ -46,6 +46,40 @@ normalize_transform = transforms.Compose([
     transforms.Normalize(mean, std)
 ])
 
+# def process_and_save_image(image_path, output_path):
+#     image = Image.open(image_path)
+#     image = image.convert('RGB')
+#     predictions_list = []
+#     accuracy_list = []
+
+#     boxes, _ = mtcnn.detect(image)
+#     if boxes is not None:
+#         for box in boxes:
+#             face = image.crop(box)
+#             face = np.array(face)
+#             face = normalize_transform(face).unsqueeze(0).to(device)
+
+#             prediction = model(face)
+#             prediction = torch.softmax(prediction, dim=1)
+#             _, predicted_class = torch.max(prediction, 1)
+#             pred_label = predicted_class.item()
+
+#             pred_accuracy = torch.max(prediction).item() * 100
+
+#             label = "Real" if pred_label == 1 else "Fake"
+#             label_with_accuracy = f"{label} ({pred_accuracy:.2f}%)"
+#             draw_box_and_label(image, box, label_with_accuracy)
+#             predictions_list.append(pred_label)
+#             accuracy_list.append(pred_accuracy)
+
+#             print(f"Processed {image_path}: {label_with_accuracy}")  # In ra dự đoán và độ chính xác
+
+#     plt.imshow(image)
+#     plt.axis('off')
+#     plt.savefig(output_path, bbox_inches='tight')
+
+#     return predictions_list, accuracy_list
+
 def process_and_save_image(image_path, output_path):
     image = Image.open(image_path)
     image = image.convert('RGB')
@@ -61,18 +95,23 @@ def process_and_save_image(image_path, output_path):
 
             prediction = model(face)
             prediction = torch.softmax(prediction, dim=1)
-            _, predicted_class = torch.max(prediction, 1)
+            pred_probability, predicted_class = torch.max(prediction, 1)
             pred_label = predicted_class.item()
 
-            pred_accuracy = torch.max(prediction).item() * 100
+            pred_real_percentage = prediction[0][1].item() * 100
+            pred_fake_percentage = prediction[0][0].item() * 100
 
-            label = "Real" if pred_label == 1 else "Fake"
-            label_with_accuracy = f"{label} ({pred_accuracy:.2f}%)"
-            draw_box_and_label(image, box, label_with_accuracy)
+            if max(pred_real_percentage, pred_fake_percentage) > 80:
+                label = "Real" if pred_label == 1 else "Fake"
+            else:
+                label = "Calculating"
+
+            label_with_probability = f"{label} (Real: {pred_real_percentage:.2f}%, Fake: {pred_fake_percentage:.2f}%)"
+            draw_box_and_label(image, box, label_with_probability)
             predictions_list.append(pred_label)
-            accuracy_list.append(pred_accuracy)
+            accuracy_list.append((pred_real_percentage, pred_fake_percentage))
 
-            print(f"Processed {image_path}: {label_with_accuracy}")  # In ra dự đoán và độ chính xác
+            print(f"Processed {image_path}: {label_with_probability}")  # Print prediction and probabilities
 
     plt.imshow(image)
     plt.axis('off')
