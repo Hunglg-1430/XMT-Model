@@ -1,6 +1,7 @@
 import os
 import cv2
 import torch
+import random
 from pathlib import Path
 from tqdm import tqdm
 from models.experimental import attempt_load
@@ -18,14 +19,27 @@ def scale_coords(img_shape, coords, actual_shape):
     coords[:, :4] = coords[:, :4].clamp(min=0)
     return coords
 
+def get_frame_count(video_path):
+    # Open video file
+    cap = cv2.VideoCapture(video_path)
+    # Get total number of frames
+    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    # Release video capture
+    cap.release()
+    return frame_count
+
+def select_random_frames(total_frames, num_frames=100):
+    # Select 100 random frame indices
+    return random.sample(range(total_frames), num_frames)
+
 # Load YOLOv5 model
 device = select_device('')
 model = attempt_load('face_detection_yolov5s.pt')
 stride = int(model.stride.max())
 
 # Input and output directories
-input_folder = r'your/path'
-output_folder = r'your/path'
+input_folder = r'D:\Youtube\frame_1'
+output_folder = r'D:\Youtube\frame_2'
 Path(output_folder).mkdir(parents=True, exist_ok=True)
 
 # Transformation to resize images to 224x224
@@ -39,12 +53,15 @@ transform = transforms.Compose([
 for video_file in os.listdir(input_folder):
     if video_file.endswith(".mp4"):
         video_path = os.path.join(input_folder, video_file)
-        
+        total_frames = get_frame_count(video_path)
+        selected_frames = select_random_frames(total_frames)
+
         # Open video file
         cap = cv2.VideoCapture(video_path)
 
-        # Process the first 50 frames of the video
-        for frame_num in tqdm(range(100)):
+        for frame_num in tqdm(selected_frames):
+            # Set the frame position
+            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
             ret, frame = cap.read()
             if not ret:
                 break
