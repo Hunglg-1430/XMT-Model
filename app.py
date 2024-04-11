@@ -3,7 +3,7 @@ import classify_page
 import classify_video
 
 st.set_page_config(
-    page_title="Deforgify",
+    page_title="XMT model",
     page_icon="🤖",
     layout="wide")
 
@@ -13,7 +13,7 @@ PAGES = {
 }
 
 
-st.sidebar.title("Deforgify")
+st.sidebar.title("XMT model")
 
 st.sidebar.write("Deforgify is a tool that utilizes the power of Deep Learning to distinguish Real images from the Fake ones.")
 

@@ -28,49 +28,68 @@ normalize_transform = transforms.Compose([
     transforms.Normalize(mean, std)
 ])
 
-def process_and_save_image(image_path, output_path):
-    image = Image.open(image_path)
-    image = image.convert('RGB')
-    predictions_list = []
-    accuracy_list = []
+# def process_and_save_image(image_path, output_path):
+#     image = Image.open(image_path)
+#     image = image.convert('RGB')
+#     predictions_list = []
+#     accuracy_list = []
 
-    boxes, _ = mtcnn.detect(image)
-    if boxes is not None:
-        for box in boxes:
-            face = image.crop(box)
-            face = np.array(face)
-            face = normalize_transform(face).unsqueeze(0).to(device)
+#     boxes, _ = mtcnn.detect(image)
+#     if boxes is not None:
+#         for box in boxes:
+#             face = image.crop(box)
+#             face = np.array(face)
+#             face = normalize_transform(face).unsqueeze(0).to(device)
 
-            prediction = model(face)
-            prediction = torch.softmax(prediction, dim=1)
-            _, predicted_class = torch.max(prediction, 1)
-            pred_label = predicted_class.item()
+#             prediction = model(face)
+#             prediction = torch.softmax(prediction, dim=1)
+#             _, predicted_class = torch.max(prediction, 1)
+#             pred_label = predicted_class.item()
 
-            pred_accuracy = torch.max(prediction).item() * 100
+#             pred_accuracy = torch.max(prediction).item() * 100
 
-            label = "Real" if pred_label == 1 else "Fake"
-            label_with_accuracy = f"{label} ({pred_accuracy:.2f}%)"
-            draw_box_and_label(image, box, label_with_accuracy)
-            predictions_list.append(pred_label)
-            accuracy_list.append(pred_accuracy)
+#             label = "Real" if pred_label == 1 else "Fake"
+#             label_with_accuracy = f"{label} ({pred_accuracy:.2f}%)"
+#             draw_box_and_label(image, box, label_with_accuracy)
+#             predictions_list.append(pred_label)
+#             accuracy_list.append(pred_accuracy)
 
-            print(f"Processed {image_path}: {label_with_accuracy}")  # In ra dự đoán và độ chính xác
+#             print(f"Processed {image_path}: {label_with_accuracy}")  # In ra dự đoán và độ chính xác
 
-    plt.imshow(image)
-    plt.axis('off')
-    plt.savefig(output_path, bbox_inches='tight')
+#     plt.imshow(image)
+#     plt.axis('off')
+#     plt.savefig(output_path, bbox_inches='tight')
 
-    return predictions_list, accuracy_list
+#     return predictions_list, accuracy_list
+
+
+
+# def draw_box_and_label(image, box, label):
+#     draw = ImageDraw.Draw(image)
+#     color =     
+#     box = [int(coordinate) for coordinate in box]
+#     expanded_box = [box[0], box[1] - 20, box[2], box[3] + 20]
+#     box_tuple = (expanded_box[0], expanded_box[1], expanded_box[2], expanded_box[3])   
+#     font = ImageFont.load_default(30)
+#     draw.rectangle(box_tuple, outline=color, width=2)
+#     text_position = (box[0], box[1] - 10) if box[1] - 10 > 0 else (box[0], box[1])
+#     draw.text(text_position, label, fill=color, font=font)
+
 
 def draw_box_and_label(image, box, label):
     draw = ImageDraw.Draw(image)
-    color = "yellow" if label.startswith("Real") else "yellow"
     box = [int(coordinate) for coordinate in box]
-    box_tuple = (box[0], box[1], box[2], box[3])
+    expanded_box = [box[0], box[1] - 20, box[2], box[3] + 20]
+    box_tuple = (expanded_box[0], expanded_box[1], expanded_box[2], expanded_box[3])
+
+    # Chọn màu cho hộp và nhãn dựa trên label
+    color = "red" if label.startswith("Fake") else "yellow"
+
     font = ImageFont.load_default(30)
     draw.rectangle(box_tuple, outline=color, width=2)
     text_position = (box[0], box[1] - 10) if box[1] - 10 > 0 else (box[0], box[1])
     draw.text(text_position, label, fill=color, font=font)
+
 
 def extract_frames(video_path):
     cap = cv2.VideoCapture(video_path)
@@ -81,8 +100,30 @@ def extract_frames(video_path):
         yield cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     cap.release()
 
+# def process_frame(frame):
+#     image = Image.fromarray(frame)
+#     boxes, _ = mtcnn.detect(image)
+#     if boxes is not None:
+#         for box in boxes:
+#             face = image.crop(box)
+#             face = np.array(face)
+#             face = normalize_transform(face).unsqueeze(0).to(device)
+
+#             prediction = model(face)
+#             prediction = torch.softmax(prediction, dim=1)
+#             _, predicted_class = torch.max(prediction, 1)
+#             pred_label = predicted_class.item()
+
+#             pred_accuracy = torch.max(prediction).item() * 100
+#             label = "Real" if pred_label == 1 else "Fake"
+#             label_with_accuracy = f"{label} ({pred_accuracy:.2f}%)"
+#             draw_box_and_label(image, box, label_with_accuracy)
+
+#     return np.array(image)
+
+
 def process_frame(frame):
-    image = Image.fromarray(frame)
+    image = Image.fromarray(frame)    
     boxes, _ = mtcnn.detect(image)
     if boxes is not None:
         for box in boxes:
@@ -92,13 +133,23 @@ def process_frame(frame):
 
             prediction = model(face)
             prediction = torch.softmax(prediction, dim=1)
-            _, predicted_class = torch.max(prediction, 1)
-            pred_label = predicted_class.item()
+            pred_real_percentage = prediction[0][1].item() * 100
+            pred_fake_percentage = prediction[0][0].item() * 100
 
-            pred_accuracy = torch.max(prediction).item() * 100
-            label = "Real" if pred_label == 1 else "Fake"
-            label_with_accuracy = f"{label} ({pred_accuracy:.2f}%)"
-            draw_box_and_label(image, box, label_with_accuracy)
+            if max(pred_real_percentage, pred_fake_percentage) > 80:
+                _, predicted_class = torch.max(prediction, 1)
+                pred_label = predicted_class.item()
+                label = "Real" if pred_label == 1 else "Fake"
+            else:
+                label = "Calculating"
+
+            if label == "Calculating": 
+                label_with_probabilities = f"{label}"
+            elif label == "Fake" : 
+                label_with_probabilities = f"{label}:{(100 - pred_real_percentage):.2f}%"
+            else: 
+                label_with_probabilities = f"{label}:{pred_real_percentage:.2f}%"
+            draw_box_and_label(image, box, label_with_probabilities)
 
     return np.array(image)
 
