@@ -12,7 +12,7 @@ import torch.nn.functional as F
 import argparse
 from load_model import load_model_xmt
 from PIL import ImageFont, ImageDraw
-
+from deepface import DeepFace
 
 mtcnn, model, device = load_model_xmt()
 
@@ -66,10 +66,10 @@ normalize_transform = transforms.Compose([
 
 # def draw_box_and_label(image, box, label):
 #     draw = ImageDraw.Draw(image)
-#     color =     
+#     color =
 #     box = [int(coordinate) for coordinate in box]
 #     expanded_box = [box[0], box[1] - 20, box[2], box[3] + 20]
-#     box_tuple = (expanded_box[0], expanded_box[1], expanded_box[2], expanded_box[3])   
+#     box_tuple = (expanded_box[0], expanded_box[1], expanded_box[2], expanded_box[3])
 #     font = ImageFont.load_default(30)
 #     draw.rectangle(box_tuple, outline=color, width=2)
 #     text_position = (box[0], box[1] - 10) if box[1] - 10 > 0 else (box[0], box[1])
@@ -121,35 +121,67 @@ def extract_frames(video_path):
 
 #     return np.array(image)
 
+# def process_frame(frame):
+#     image = Image.fromarray(frame)
+#     boxes, _ = mtcnn.detect(image)
+#     if boxes is not None:
+#         for box in boxes:
+#             face = image.crop(box)
+#             face = np.array(face)
+#             face = normalize_transform(face).unsqueeze(0).to(device)
+
+#             prediction = model(face)
+#             prediction = torch.softmax(prediction, dim=1)
+#             pred_real_percentage = prediction[0][1].item() * 100
+#             pred_fake_percentage = prediction[0][0].item() * 100
+
+#             if max(pred_real_percentage, pred_fake_percentage) > 80:
+#                 _, predicted_class = torch.max(prediction, 1)
+#                 pred_label = predicted_class.item()
+#                 label = "Real" if pred_label == 1 else "Fake"
+#             else:
+#                 label = "Calculating"
+
+#             if label == "Calculating":
+#                 label_with_probabilities = f"{label}"
+#             elif label == "Fake" :
+#                 label_with_probabilities = f"{label}:{(100 - pred_real_percentage):.2f}%"
+#             else:
+#                 label_with_probabilities = f"{label}:{pred_real_percentage:.2f}%"
+#             draw_box_and_label(image, box, label_with_probabilities)
+
+#     return np.array(image)
 
 def process_frame(frame):
-    image = Image.fromarray(frame)    
-    boxes, _ = mtcnn.detect(image)
-    if boxes is not None:
-        for box in boxes:
-            face = image.crop(box)
-            face = np.array(face)
-            face = normalize_transform(face).unsqueeze(0).to(device)
+    image = Image.fromarray(frame)
+    detections = DeepFace.detectFace(image, detector_backend = 'opencv')
 
-            prediction = model(face)
-            prediction = torch.softmax(prediction, dim=1)
-            pred_real_percentage = prediction[0][1].item() * 100
-            pred_fake_percentage = prediction[0][0].item() * 100
+    for detection in detections:
+        x, y, w, h = detection['x'], detection['y'], detection['width'], detection['height']
+        box = (x, y, x+w, y+h)
+        face = image.crop(box)
+        face = np.array(face)
+        face = normalize_transform(face).unsqueeze(0).to(device)
 
-            if max(pred_real_percentage, pred_fake_percentage) > 80:
-                _, predicted_class = torch.max(prediction, 1)
-                pred_label = predicted_class.item()
-                label = "Real" if pred_label == 1 else "Fake"
-            else:
-                label = "Calculating"
+        prediction = model(face)
+        prediction = torch.softmax(prediction, dim=1)
+        pred_real_percentage = prediction[0][1].item() * 100
+        pred_fake_percentage = prediction[0][0].item() * 100
 
-            if label == "Calculating": 
-                label_with_probabilities = f"{label}"
-            elif label == "Fake" : 
-                label_with_probabilities = f"{label}:{(100 - pred_real_percentage):.2f}%"
-            else: 
-                label_with_probabilities = f"{label}:{pred_real_percentage:.2f}%"
-            draw_box_and_label(image, box, label_with_probabilities)
+        if max(pred_real_percentage, pred_fake_percentage) > 80:
+            _, predicted_class = torch.max(prediction, 1)
+            pred_label = predicted_class.item()
+            label = "Real" if pred_label == 1 else "Fake"
+        else:
+            label = "Calculating"
+
+        if label == "Calculating":
+            label_with_probabilities = f"{label}"
+        elif label == "Fake":
+            label_with_probabilities = f"{label}:{(100 - pred_real_percentage):.2f}%"
+        else:
+            label_with_probabilities = f"{label}:{pred_real_percentage:.2f}%"
+        draw_box_and_label(image, box, label_with_probabilities)
 
     return np.array(image)
 
