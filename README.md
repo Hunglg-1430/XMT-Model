@@ -43,14 +43,12 @@ python train.py -e 15 -s 'g' -l 0.0001 -w 0.0000001 -d sample_train_data/ -p
 python image-prediction.py
 ```
 - Predict on Video
+
 ```bash
-python video-prediction.py
+python video-prediction.py --video_path --display
 ```
 ```bash
-python video-prediction-2.py --video_path --display
-```
-```bash
-python video-prediction-2.py --video_path --output_path --save
+python video-prediction.py --video_path --output_path --save
 ```
 ### Authors:
 - Le Dang Khoa
